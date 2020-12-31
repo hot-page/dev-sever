@@ -25,14 +25,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const http = __importStar(require("http"));
 const https_1 = __importDefault(require("https"));
 const cheerio_1 = __importDefault(require("cheerio"));
-module.exports = function makeUnnamedDevelopmentServer(options) {
+module.exports = function makeHotPageDevelopmentServer(options) {
     const { site, replaceAssets, port = 8000 } = options;
     if (!site)
         throw "Site is required";
     const server = http.createServer(function (req, res) {
         console.log(req.url);
         const options = {
-            host: `${site}.unnamed-user-content.squids.online`,
+            host: site.includes('.') ? site : `${site}.hot.page`,
             path: req.url,
         };
         https_1.default.request(options, (proxyRes) => {
@@ -42,17 +42,25 @@ module.exports = function makeUnnamedDevelopmentServer(options) {
             proxyRes.on('end', () => {
                 const $ = cheerio_1.default.load(html);
                 Object.keys(replaceAssets).forEach((source) => {
+                    const addAsset = () => {
+                        if (replaceAssets[source].endsWith('.js')) {
+                            $(`head`).append(`<script src="${replaceAssets[source]}"></script>`);
+                        }
+                        else if (replaceAssets[source].endsWith('.css')) {
+                            $(`head`).append(`<link rel=stylesheet href="${replaceAssets[source]}">`);
+                        }
+                    };
                     if (source.endsWith('.js')) {
-                        $(`script[src="${source}"]`).remove();
+                        if ($(`script[src="${source}"]`).length > 0) {
+                            $(`script[src="${source}"]`).remove();
+                            addAsset();
+                        }
                     }
                     else if (source.endsWith('.css')) {
-                        $(`link[href="${source}"]`).remove();
-                    }
-                    if (replaceAssets[source].endsWith('.js')) {
-                        $(`head`).append(`<script src="${replaceAssets[source]}"></script>`);
-                    }
-                    else if (replaceAssets[source].endsWith('.css')) {
-                        $(`head`).append(`<link rel=stylesheet href="${replaceAssets[source]}">`);
+                        if ($(`link[href="${source}"]`).length > 0) {
+                            $(`link[href="${source}"]`).remove();
+                            addAsset();
+                        }
                     }
                 });
                 res.end($.html());
